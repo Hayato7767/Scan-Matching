@@ -2,7 +2,8 @@
 // Dec 21 2020
 // Aaron Brown
 
-//comitt & push test (yoshida)
+//comitt & push test2 (yoshida)
+
 
 using namespace std;
 
@@ -15,6 +16,7 @@ using namespace std;
 
 Eigen::Matrix4d ICP(PointCloudT::Ptr target, PointCloudT::Ptr source, Pose startingPose, int iterations){
 
+	
 	Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity ();
 
 	//TODO: complete the ICP function and return the corrected transform
@@ -94,7 +96,7 @@ int main(){
 		renderPointCloud(viewer, scan, "scan_"+to_string(count), Color(1,0,0)); // render scan
 		 
 		// perform localization
-		Eigen::Matrix4d transform = ICP(map, scan, location, 0); //TODO: make the iteration count greater than zero
+		Eigen::Matrix4d transform = ICP(map, scan, location, 10); //TODO: make the iteration count greater than zero
 		Pose estimate = getPose(transform);
 		// TODO: save estimate location and use it as starting pose for ICP next time
 		
