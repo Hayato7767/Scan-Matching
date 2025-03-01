@@ -21,6 +21,32 @@ Eigen::Matrix4d ICP(PointCloudT::Ptr target, PointCloudT::Ptr source, Pose start
 
 	//TODO: complete the ICP function and return the corrected transform
 
+	//step1 transform the source to the startingPose
+	double theta = startingPose.theta;
+	double xt = startingPose.position.x;
+	double yt = startingPose.position.y;
+	
+	Eigen::Matrix4d TFMatrixByStartingPose = transform2D(-theta, -xt, -yt);
+	//robot movement direction is opposit to PCL movement direction, thus multiply by -1
+
+	PointCloudT::Ptr source_transformed(new PointCloudT);
+	//Eigen::Matrix4f TFMatrixByStartingPose_f = TFMatrixByStartingPose.cast<float>();
+	pcl::transformPointCloud(*source, *source_transformed, TFMatrixByStartingPose);
+
+	//step2 create ICP object of PCL
+	pcl::IterativeClosestPoint<PointT, PointT> icp;
+	icp.setMaximumIterations(iterations);
+	icp.setInputSource(source_transformed);
+	icp.setInputTarget(target);
+	//icp.setMaxCorrespondenceDistance();
+	
+
+	PointCloudT aligned;
+	icp.align(aligned);
+
+	transformation_matrix = icp.getFinalTransformation().cast<double>();
+
+
 	return transformation_matrix;
 
 }
@@ -66,7 +92,7 @@ int main(){
 	vector<Vect2> movement = {Vect2(0.5,pi/12)};
 
 	// Part 2. TODO: localize after several steps
-	if(false){ // Change to true
+	if(true){ // Change to true
 		movement.push_back(Vect2(0.8, pi/10));
 		movement.push_back(Vect2(1.0, pi/6));
 	}
@@ -96,15 +122,23 @@ int main(){
 		renderPointCloud(viewer, scan, "scan_"+to_string(count), Color(1,0,0)); // render scan
 		 
 		// perform localization
-		Eigen::Matrix4d transform = ICP(map, scan, location, 10); //TODO: make the iteration count greater than zero
+		Eigen::Matrix4d transform = ICP(map, scan, location, 15); //TODO: make the iteration count greater than zero
+
 		Pose estimate = getPose(transform);
 		// TODO: save estimate location and use it as starting pose for ICP next time
-		
 		locator->points.push_back(PointT(estimate.position.x, estimate.position.y, 0));
+
+		location.position.x = estimate.position.x;
+		location.position.y = estimate.position.y;
+		location.theta = estimate.theta;
 		
 		// view transformed scan
 		// TODO: perform the transformation on the scan using transform from ICP
+		PointCloudT::Ptr transformed_cloud(new PointCloudT);
+		pcl::transformPointCloud(*scan, *transformed_cloud, transform);
+
 		// TODO: render the correct scan
+		renderPointCloud(viewer, transformed_cloud, "Transformed Scan"+std::to_string(count), Color(0,1,0));
 		
 		count++;
 	}
