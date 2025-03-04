@@ -69,6 +69,7 @@ void keyboardEventOccurred(const pcl::visualization::KeyboardEvent &event, void*
 }
 
 double Score(vector<int> pairs, PointCloudT::Ptr target, PointCloudT::Ptr source, Eigen::Matrix4d transform){
+	//Yoshida: this function calculate the matching score after moving source PCT by transform matrix
 	double score = 0;
 	int index = 0;
 	for(int i : pairs){
@@ -89,14 +90,32 @@ vector<int> NN(PointCloudT::Ptr target, PointCloudT::Ptr source, Eigen::Matrix4d
 	
 	vector<int> associations;
 
+
 	// TODO: complete this function which returns a vector of target indicies that correspond to each source index inorder.
 	// E.G. source index 0 -> target index 32, source index 1 -> target index 5, source index 2 -> target index 17, ... 
-
+	
 	// TODO: create a KDtree with target as input
+	pcl::KdTreeFLANN<PointT> kdtree;
+	kdtree.setInputCloud(*target)
 
 	// TODO: transform source by initTransform
+	PointCloudT::Ptr transformSource (new PointCloudT);
+	pcl::transformPointCloud(*source,*transformSource, initTransform);
+
 
 	// TODO loop through each transformed source point and using the KDtree find the transformed source point's nearest target point. Append the nearest point to associaitons 
+
+	//Yoshida: need to create loop per point here?
+
+	vector<int> pointIdxRadiusSearch;
+	vector<float> pointRadiusSquaredDistance;
+
+	#POINT 'pcl::PointXYZ'("nput Point from transformed source required here");
+	#DISTANCE 'double' //use distance parameter from 'NN' header
+
+	kdtree.radiusSearch(#POINT,#DISTANCE, pointIdxRadiusSearch,pointRadiusSquaredDistance);
+
+
 
 	return associations;
 }
