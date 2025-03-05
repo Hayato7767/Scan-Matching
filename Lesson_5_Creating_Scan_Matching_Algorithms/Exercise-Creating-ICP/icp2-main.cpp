@@ -88,7 +88,7 @@ double Score(vector<int> pairs, PointCloudT::Ptr target, PointCloudT::Ptr source
 
 vector<int> NN(PointCloudT::Ptr target, PointCloudT::Ptr source, Eigen::Matrix4d initTransform, double dist){
 	
-	vector<int> associations;
+	vector<int> associations(target -> size(), -1);
 
 
 	// TODO: complete this function which returns a vector of target indicies that correspond to each source index inorder.
@@ -96,7 +96,7 @@ vector<int> NN(PointCloudT::Ptr target, PointCloudT::Ptr source, Eigen::Matrix4d
 	
 	// TODO: create a KDtree with target as input
 	pcl::KdTreeFLANN<PointT> kdtree;
-	kdtree.setInputCloud(*target)
+	kdtree.setInputCloud(target);
 
 	// TODO: transform source by initTransform
 	PointCloudT::Ptr transformSource (new PointCloudT);
@@ -110,12 +110,15 @@ vector<int> NN(PointCloudT::Ptr target, PointCloudT::Ptr source, Eigen::Matrix4d
 	vector<int> pointIdxRadiusSearch;
 	vector<float> pointRadiusSquaredDistance;
 
-	#POINT 'pcl::PointXYZ'("nput Point from transformed source required here");
-	#DISTANCE 'double' //use distance parameter from 'NN' header
+	for (int i=0; i<transformSource -> size(); ++i){
+		pcl::PointXYZ SourcePoint = transformSource ->points[i];
 
-	kdtree.radiusSearch(#POINT,#DISTANCE, pointIdxRadiusSearch,pointRadiusSquaredDistance);
+		if(kdtree.radiusSearch(SourcePoint, dist, pointIdxRadiusSearch, pointRadiusSquaredDistance) > 0){
+			
+			associations[i] = pointIdxRadiusSearch[0];
 
-
+			}
+	}
 
 	return associations;
 }
@@ -125,6 +128,19 @@ vector<Pair> PairPoints(vector<int> associations, PointCloudT::Ptr target, Point
 	vector<Pair> pairs;
 
 	// TODO: loop through each source point and using the corresponding associations append a Pair of (source point, associated target point)
+	for(int i = 0; i<associations.size(); ++i){
+		PointT targetPoint = target -> points[i];
+		PointT sourcePoint = source -> points[i];
+
+		Point target(targetPoint.x, targetPoint.y, targetPoint.z);
+		Point source(sourcePoint.x, sourcePoint.y, sourcePoint.z);
+
+		Pair pairs(source, target);
+
+	}
+
+
+
 
 	return pairs;
 }
