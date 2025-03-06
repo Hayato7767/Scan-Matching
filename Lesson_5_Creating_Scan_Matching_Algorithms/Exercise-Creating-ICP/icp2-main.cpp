@@ -128,18 +128,28 @@ vector<Pair> PairPoints(vector<int> associations, PointCloudT::Ptr target, Point
 	vector<Pair> pairs;
 
 	// TODO: loop through each source point and using the corresponding associations append a Pair of (source point, associated target point)
-	for(int i = 0; i<associations.size(); ++i){
-		PointT targetPoint = target -> points[i];
-		PointT sourcePoint = source -> points[i];
+	for(int i =0; i < (*source).size(); ++i){
 
-		Point target(targetPoint.x, targetPoint.y, targetPoint.z);
-		Point source(sourcePoint.x, sourcePoint.y, sourcePoint.z);
+		PointT point = (*source).points;
 
-		Pair pairs(source, target);
+		PointT association = (*target)[associations[i]];
+		
+		//PointT sourcePoint = source -> points[i];
+		//PointT targetPoint = target -> points[associations[i]];
 
+		//Point target(targetPoint.x, targetPoint.y, 0);
+		//Point source(sourcePoint.x, sourcePoint.y, 0);
+
+		Pair pairs(Point(point.x,point.y,0),Point(association.x,association.y,0));
+
+		//std::cout << targetPoint.x << targetPoint.y << targetPoint.z <<std::endl;
+		//std::cout << sourcePoint.x << sourcePoint.y << sourcePoint.z <<std::endl;
+
+		viewer->removeShape(to_string(i));
+		renderRay(viewer,point, association, to_string(i), Color(0,1,0));
 	}
 
-
+	
 
 
 	return pairs;
