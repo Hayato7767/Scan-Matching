@@ -130,9 +130,9 @@ vector<Pair> PairPoints(vector<int> associations, PointCloudT::Ptr target, Point
 	// TODO: loop through each source point and using the corresponding associations append a Pair of (source point, associated target point)
 	for(int i =0; i < (*source).size(); ++i){
 
-		PointT point = (*source).points;
+		PointT point = (*source).points[i];
 
-		PointT association = (*target)[associations[i]];
+		PointT association = (*target).points[associations[i]];
 		
 		//PointT sourcePoint = source -> points[i];
 		//PointT targetPoint = target -> points[associations[i]];
@@ -146,7 +146,7 @@ vector<Pair> PairPoints(vector<int> associations, PointCloudT::Ptr target, Point
 		//std::cout << sourcePoint.x << sourcePoint.y << sourcePoint.z <<std::endl;
 
 		viewer->removeShape(to_string(i));
-		renderRay(viewer,point, association, to_string(i), Color(0,1,0));
+		renderRay(viewer, pairs.p1, pairs.p2, to_string(i), Color(0,1,0));
 	}
 
 	
@@ -160,16 +160,46 @@ Eigen::Matrix4d ICP(vector<int> associations, PointCloudT::Ptr target, PointClou
   	Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity();
 
   	// TODO: transform source by startingPose
-  
+	Eigen::Matrix4d startingPoseMat = transform3D(startingPose.rotation.yaw, startingPose.rotation.pitch, startingPose.rotation.roll, startingPose.position.x, startingPose.position.y, startingPose.position.z);
+	Eigen::Matrix4d sourceTransformed = (*source).points * startingPoseMat;
+
   	// TODO: create matrices P and Q which are both 2 x 1 and represent mean point of pairs 1 and pairs 2 respectivley.
   	// In other words P is the mean point of source and Q is the mean point target 
   	// P = [ mean p1 x] Q = [ mean p2 x]
   	//	   [ mean p1 y]	    [ mean p2 y]
 
+	double total_px, total_py, total_qx, total_qy;
+	int totalPointNum = (*source).points.size();
+
+	for(int i=0; i<totalPointNum;++i){
+
+		total_px += (*source).points[i].x;
+		total_py += (*source).points[i].y;
+		total_qx += (*target).points[i].x;
+		total_qy += (*target).points[i].y;
+
+	}
+
+	
+	vector<double> P = {total_px/totalPointNum,total_py/totalPointNum};
+	vector<double> Q = {total_qx/totalPointNum,total_qy/totalPointNum};
+
+
   	// TODO: get pairs of points from PairPoints and create matrices X and Y which are both 2 x n where n is number of pairs.
   	// X is pair 1 x point with pair 2 x point for each column and Y is the same except for y points
   	// X = [p1 x0 , p1 x1 , p1 x2 , .... , p1 xn ] - [Px]   Y = [p2 x0 , p2 x1 , p2 x2 , .... , p2 xn ] - [Qx]
   	//     [p1 y0 , p1 y1 , p1 y2 , .... , p1 yn ]   [Py]       [p2 y0 , p2 y1 , p2 y2 , .... , p2 yn ]   [Qy]
+
+	vector<vector<double>> X(2,vector<double>(totalPointNum));
+	vector<vector<double>> Y(2,vector<double>(totalPointNum));
+
+	for(int i=0; i<totalPointNum; ++i){
+		X[0][i] = (*source).points.x - P[0];
+		X[1][i] = (*source).points.y - P[1];
+		Y[0][i] = (*target).points.x - q[0];
+		Y[1][i] = (*target).points.y - q[1];
+
+	}
 
   	// TODO: create matrix S using equation 3 from the svd_rot.pdf. Note W is simply the identity matrix because weights are all 1
 
