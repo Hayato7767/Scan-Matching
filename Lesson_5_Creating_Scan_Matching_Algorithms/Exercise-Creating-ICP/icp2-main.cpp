@@ -161,7 +161,9 @@ Eigen::Matrix4d ICP(vector<int> associations, PointCloudT::Ptr target, PointClou
 
   	// TODO: transform source by startingPose
 	Eigen::Matrix4d startingPoseMat = transform3D(startingPose.rotation.yaw, startingPose.rotation.pitch, startingPose.rotation.roll, startingPose.position.x, startingPose.position.y, startingPose.position.z);
-	Eigen::Matrix4d sourceTransformed = (*source).points * startingPoseMat;
+	
+	PointCloudT::Ptr sourceTransformed(new PointCloudT);
+	pcl::transformPointCloud(*source, *sourceTransformed, startingPoseMat);
 
   	// TODO: create matrices P and Q which are both 2 x 1 and represent mean point of pairs 1 and pairs 2 respectivley.
   	// In other words P is the mean point of source and Q is the mean point target 
@@ -190,20 +192,30 @@ Eigen::Matrix4d ICP(vector<int> associations, PointCloudT::Ptr target, PointClou
   	// X = [p1 x0 , p1 x1 , p1 x2 , .... , p1 xn ] - [Px]   Y = [p2 x0 , p2 x1 , p2 x2 , .... , p2 xn ] - [Qx]
   	//     [p1 y0 , p1 y1 , p1 y2 , .... , p1 yn ]   [Py]       [p2 y0 , p2 y1 , p2 y2 , .... , p2 yn ]   [Qy]
 
-	vector<vector<double>> X(2,vector<double>(totalPointNum));
-	vector<vector<double>> Y(2,vector<double>(totalPointNum));
+	//vector<vector<double>> X(2,vector<double>(totalPointNum));
+	//vector<vector<double>> Y(2,vector<double>(totalPointNum));
+	Eigen::MatrixXd X(2,totalPointNum);
+	Eigen::MatrixXd Y(2,totalPointNum);
 
 	for(int i=0; i<totalPointNum; ++i){
-		X[0][i] = (*source).points.x - P[0];
-		X[1][i] = (*source).points.y - P[1];
-		Y[0][i] = (*target).points.x - q[0];
-		Y[1][i] = (*target).points.y - q[1];
+		X(0,i) = (*source).points[i].x - P[0];
+		X(1,i) = (*source).points[i].y - P[1];
+		Y(0,i) = (*target).points[i].x - Q[0];
+		Y(1,i) = (*target).points[i].y - Q[1];
 
 	}
 
   	// TODO: create matrix S using equation 3 from the svd_rot.pdf. Note W is simply the identity matrix because weights are all 1
 
+	Eigen::MatrixXd W = Eigen::MatrixXd::Identity (totalPointNum, totalPointNum);
+	Eigen::MatrixXd S = X*W*Y.transpose();
   	// TODO: create matrix R, the optimal rotation using equation 4 from the svd_rot.pdf and using SVD of S
+
+	Eigen::JacobiSVD<Eigen::MatrixXd> svd(S, Eigen::ComputeFullU | Eigen::ComputeFullV);
+
+	Eigen::MatrixXd U = svd.matrixU();
+	Eigen::VectorXd sigma = svd.singularValues();
+	Eigen::MatrixXd V = svd.matrixV();
 
   	// TODO: create mtarix t, the optimal translatation using equation 5 from svd_rot.pdf
 
