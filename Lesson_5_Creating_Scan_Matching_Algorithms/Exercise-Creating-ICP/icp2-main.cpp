@@ -157,7 +157,7 @@ vector<Pair> PairPoints(vector<int> associations, PointCloudT::Ptr target, Point
 
 Eigen::Matrix4d ICP(vector<int> associations, PointCloudT::Ptr target, PointCloudT::Ptr source, Pose startingPose, int iterations, pcl::visualization::PCLVisualizer::Ptr& viewer){
 
-  	Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity();
+  	//Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity();
 
   	// TODO: transform source by startingPose
 	Eigen::Matrix4d startingPoseMat = transform3D(startingPose.rotation.yaw, startingPose.rotation.pitch, startingPose.rotation.roll, startingPose.position.x, startingPose.position.y, startingPose.position.z);
@@ -183,8 +183,16 @@ Eigen::Matrix4d ICP(vector<int> associations, PointCloudT::Ptr target, PointClou
 	}
 
 	
-	vector<double> P = {total_px/totalPointNum,total_py/totalPointNum};
-	vector<double> Q = {total_qx/totalPointNum,total_qy/totalPointNum};
+	//vector<double> P = {total_px/totalPointNum,total_py/totalPointNum};
+	//vector<double> Q = {total_qx/totalPointNum,total_qy/totalPointNum};
+
+	Eigen::MatrixXd P(2,1);
+	P(0,0) = total_px/totalPointNum;
+	P(1,0) = total_py/totalPointNum;
+
+	Eigen::MatrixXd Q(2,1);
+	Q(0,0) = total_qx/totalPointNum;
+	Q(1,0) = total_qy/totalPointNum;
 
 
   	// TODO: get pairs of points from PairPoints and create matrices X and Y which are both 2 x n where n is number of pairs.
@@ -198,32 +206,40 @@ Eigen::Matrix4d ICP(vector<int> associations, PointCloudT::Ptr target, PointClou
 	Eigen::MatrixXd Y(2,totalPointNum);
 
 	for(int i=0; i<totalPointNum; ++i){
-		X(0,i) = (*source).points[i].x - P[0];
-		X(1,i) = (*source).points[i].y - P[1];
-		Y(0,i) = (*target).points[i].x - Q[0];
-		Y(1,i) = (*target).points[i].y - Q[1];
+		X(0,i) = (*source).points[i].x - P(0,0);
+		X(1,i) = (*source).points[i].y - P(1,0);
+		Y(0,i) = (*target).points[i].x - Q(0,0);
+		Y(1,i) = (*target).points[i].y - Q(1,0);
 
 	}
 
   	// TODO: create matrix S using equation 3 from the svd_rot.pdf. Note W is simply the identity matrix because weights are all 1
 
-	Eigen::MatrixXd W = Eigen::MatrixXd::Identity (totalPointNum, totalPointNum);
-	Eigen::MatrixXd S = X*W*Y.transpose();
+	Eigen::MatrixXd W = Eigen::MatrixXd::Identity (2,2);
+	Eigen::MatrixXd S = X*W*(Y.transpose());
   	// TODO: create matrix R, the optimal rotation using equation 4 from the svd_rot.pdf and using SVD of S
 
-	Eigen::JacobiSVD<Eigen::MatrixXd> svd(S, Eigen::ComputeFullU | Eigen::ComputeFullV);
+	Eigen::JacobiSVD<Eigen::MatrixXd> svd(S, Eigen::ComputeFullV | Eigen::ComputeFullU);
 
 	Eigen::MatrixXd U = svd.matrixU();
 	Eigen::VectorXd sigma = svd.singularValues();
 	Eigen::MatrixXd V = svd.matrixV();
 
   	// TODO: create mtarix t, the optimal translatation using equation 5 from svd_rot.pdf
+	Eigen::MatrixXd UVT = U * V.transpose();
+	Eigen::MatrixXd R = Eigen::MatrixXd::Identity(2,2);
+	R(1,1) = UVT.determinant();
 
   	// TODO: set transformation_matrix based on above R, and t matrices
   	// [ R R 0 t]
   	// [ R R 0 t]
   	// [ 0 0 1 0]
   	// [ 0 0 0 1]
+
+	Eigen::MatrixXd t_matrix = Q - R*P;
+	Pose R_pose = getPose(R);
+	
+	Eigen::Matrix4d transformation_matrix = transform3D(R_pose.rotation.yaw, R_pose.rotation.pitch, R_pose.rotation.roll, t_matrix(0,0), t_matrix(1,0), 0);
 
   	return transformation_matrix;
 
