@@ -7,6 +7,7 @@ using namespace std;
 #include <string>
 #include <sstream>
 #include "helper.h"
+#include<iostream>
 
 #include <Eigen/Core>
 #include <Eigen/SVD>
@@ -160,8 +161,12 @@ Eigen::Matrix4d ICP(vector<int> associations, PointCloudT::Ptr target, PointClou
   	//Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity();
 
   	// TODO: transform source by startingPose
+	cout <<"check1" <<endl;
+
 	Eigen::Matrix4d startingPoseMat = transform3D(startingPose.rotation.yaw, startingPose.rotation.pitch, startingPose.rotation.roll, startingPose.position.x, startingPose.position.y, startingPose.position.z);
-	
+
+	cout <<"check2" <<endl;
+
 	PointCloudT::Ptr sourceTransformed(new PointCloudT);
 	pcl::transformPointCloud(*source, *sourceTransformed, startingPoseMat);
 
@@ -173,7 +178,7 @@ Eigen::Matrix4d ICP(vector<int> associations, PointCloudT::Ptr target, PointClou
 	double total_px, total_py, total_qx, total_qy;
 	int totalPointNum = (*source).points.size();
 
-	for(int i=0; i<totalPointNum;++i){
+	for(int i=0; i<totalPointNum;i++){
 
 		total_px += (*source).points[i].x;
 		total_py += (*source).points[i].y;
@@ -182,9 +187,6 @@ Eigen::Matrix4d ICP(vector<int> associations, PointCloudT::Ptr target, PointClou
 
 	}
 
-	
-	//vector<double> P = {total_px/totalPointNum,total_py/totalPointNum};
-	//vector<double> Q = {total_qx/totalPointNum,total_qy/totalPointNum};
 
 	Eigen::MatrixXd P(2,1);
 	P(0,0) = total_px/totalPointNum;
@@ -194,18 +196,17 @@ Eigen::Matrix4d ICP(vector<int> associations, PointCloudT::Ptr target, PointClou
 	Q(0,0) = total_qx/totalPointNum;
 	Q(1,0) = total_qy/totalPointNum;
 
+	cout <<"check3" <<endl;
 
   	// TODO: get pairs of points from PairPoints and create matrices X and Y which are both 2 x n where n is number of pairs.
   	// X is pair 1 x point with pair 2 x point for each column and Y is the same except for y points
   	// X = [p1 x0 , p1 x1 , p1 x2 , .... , p1 xn ] - [Px]   Y = [p2 x0 , p2 x1 , p2 x2 , .... , p2 xn ] - [Qx]
   	//     [p1 y0 , p1 y1 , p1 y2 , .... , p1 yn ]   [Py]       [p2 y0 , p2 y1 , p2 y2 , .... , p2 yn ]   [Qy]
 
-	//vector<vector<double>> X(2,vector<double>(totalPointNum));
-	//vector<vector<double>> Y(2,vector<double>(totalPointNum));
 	Eigen::MatrixXd X(2,totalPointNum);
 	Eigen::MatrixXd Y(2,totalPointNum);
 
-	for(int i=0; i<totalPointNum; ++i){
+	for(int i=0; i<totalPointNum; i++){
 		X(0,i) = (*source).points[i].x - P(0,0);
 		X(1,i) = (*source).points[i].y - P(1,0);
 		Y(0,i) = (*target).points[i].x - Q(0,0);
@@ -215,7 +216,7 @@ Eigen::Matrix4d ICP(vector<int> associations, PointCloudT::Ptr target, PointClou
 
   	// TODO: create matrix S using equation 3 from the svd_rot.pdf. Note W is simply the identity matrix because weights are all 1
 
-	Eigen::MatrixXd W = Eigen::MatrixXd::Identity (2,2);
+	Eigen::MatrixXd W = Eigen::MatrixXd::Identity (totalPointNum,totalPointNum);
 	Eigen::MatrixXd S = X*W*(Y.transpose());
   	// TODO: create matrix R, the optimal rotation using equation 4 from the svd_rot.pdf and using SVD of S
 
@@ -225,10 +226,21 @@ Eigen::Matrix4d ICP(vector<int> associations, PointCloudT::Ptr target, PointClou
 	Eigen::VectorXd sigma = svd.singularValues();
 	Eigen::MatrixXd V = svd.matrixV();
 
+	Eigen::MatrixXd V_UT = V * U.transpose();
+	Eigen::MatrixXd diag = Eigen::MatrixXd::Identity(V.cols(),U.cols());
+	diag(V.cols()-1,U.cols()-1) = V_UT.determinant();
+
+	cout <<"check4" <<endl;
+
+	cout<<V.cols()<<V.rows()<<diag.cols()<<diag.rows()<<U.transpose().cols()<<U.transpose().rows()<<endl;
+
+	Eigen::MatrixXd R = V*diag*(U.transpose());
+
+
+	cout <<"check5" <<endl;
   	// TODO: create mtarix t, the optimal translatation using equation 5 from svd_rot.pdf
-	Eigen::MatrixXd UVT = U * V.transpose();
-	Eigen::MatrixXd R = Eigen::MatrixXd::Identity(2,2);
-	R(1,1) = UVT.determinant();
+	Eigen::MatrixXd t = Q - R*P;
+
 
   	// TODO: set transformation_matrix based on above R, and t matrices
   	// [ R R 0 t]
@@ -236,13 +248,18 @@ Eigen::Matrix4d ICP(vector<int> associations, PointCloudT::Ptr target, PointClou
   	// [ 0 0 1 0]
   	// [ 0 0 0 1]
 
-	Eigen::MatrixXd t_matrix = Q - R*P;
-	Pose R_pose = getPose(R);
+	Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity(4,4);
+	transformation_matrix(0,0) = R(0,0);
+	transformation_matrix(0,1) = R(0,1);
+	transformation_matrix(1,0) = R(1,0);
+	transformation_matrix(1,1) = R(1,1);
+	transformation_matrix(0,3) = t(0,0);
+	transformation_matrix(1,3) = t(1,0);
 	
-	Eigen::Matrix4d transformation_matrix = transform3D(R_pose.rotation.yaw, R_pose.rotation.pitch, R_pose.rotation.roll, t_matrix(0,0), t_matrix(1,0), 0);
-
+	cout <<"check6" <<endl;
+	cout <<transformation_matrix(0,0)<<transformation_matrix(0,1)<<transformation_matrix(1,0)<<transformation_matrix(1,1)<<transformation_matrix(0,3)<<transformation_matrix(1,3) <<endl;
+	
   	return transformation_matrix;
-
 }
 
 int main(){
