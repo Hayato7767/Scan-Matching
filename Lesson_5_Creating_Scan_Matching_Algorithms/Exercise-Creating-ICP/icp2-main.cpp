@@ -89,8 +89,7 @@ double Score(vector<int> pairs, PointCloudT::Ptr target, PointCloudT::Ptr source
 
 vector<int> NN(PointCloudT::Ptr target, PointCloudT::Ptr source, Eigen::Matrix4d initTransform, double dist){
 	
-	vector<int> associations(target -> size(), -1);
-
+	vector<int> associations;
 
 	// TODO: complete this function which returns a vector of target indicies that correspond to each source index inorder.
 	// E.G. source index 0 -> target index 32, source index 1 -> target index 5, source index 2 -> target index 17, ... 
@@ -108,17 +107,19 @@ vector<int> NN(PointCloudT::Ptr target, PointCloudT::Ptr source, Eigen::Matrix4d
 
 	//Yoshida: need to create loop per point here?
 
-	vector<int> pointIdxRadiusSearch;
-	vector<float> pointRadiusSquaredDistance;
+	for (PointT point : transformSource -> points){
+		vector<int> pointIdxRadiusSearch;
+		vector<float> pointRadiusSquaredDistance;
 
-	for (int i=0; i<transformSource -> size(); ++i){
-		pcl::PointXYZ SourcePoint = transformSource ->points[i];
+		//pcl::PointXYZ SourcePoint = transformSource ->points[i];
 
-		if(kdtree.radiusSearch(SourcePoint, dist, pointIdxRadiusSearch, pointRadiusSquaredDistance) > 0){
-			
-			associations[i] = pointIdxRadiusSearch[0];
-
+		if(kdtree.nearestKSearch(point, dist, pointIdxRadiusSearch, pointRadiusSquaredDistance) > 0){
+			associations.push_back(pointIdxRadiusSearch[0]);
 			}
+
+		else{
+			associations.push_back(-1);
+		}
 	}
 
 	return associations;
@@ -129,30 +130,25 @@ vector<Pair> PairPoints(vector<int> associations, PointCloudT::Ptr target, Point
 	vector<Pair> pairs;
 
 	// TODO: loop through each source point and using the corresponding associations append a Pair of (source point, associated target point)
-	for(int i =0; i < (*source).size(); ++i){
+	for(int i =0; i < (*source).size(); i++){
 
 		PointT point = (*source).points[i];
 
-		PointT association = (*target).points[associations[i]];
+		if(associations[i]>=0){
+
+			PointT association = (*target).points[associations[i]];
+
+			viewer->removeShape(to_string(i));
+			renderRay(viewer, Point(point.x, point.y,0), Point(association.x,association.y,0), to_string(i), Color(0,1,0));
 		
-		//PointT sourcePoint = source -> points[i];
-		//PointT targetPoint = target -> points[associations[i]];
+		//Pair pairs(Point(point.x,point.y,0),Point(association.x,association.y,0)); Not Good
 
-		//Point target(targetPoint.x, targetPoint.y, 0);
-		//Point source(sourcePoint.x, sourcePoint.y, 0);
+			pairs.push_back(Pair(Point(point.x,point.y,0),Point(association.x,association.y,0)));
 
-		Pair pairs(Point(point.x,point.y,0),Point(association.x,association.y,0));
+		
 
-		//std::cout << targetPoint.x << targetPoint.y << targetPoint.z <<std::endl;
-		//std::cout << sourcePoint.x << sourcePoint.y << sourcePoint.z <<std::endl;
-
-		viewer->removeShape(to_string(i));
-		renderRay(viewer, pairs.p1, pairs.p2, to_string(i), Color(0,1,0));
+		}
 	}
-
-	
-
-
 	return pairs;
 }
 
@@ -175,26 +171,28 @@ Eigen::Matrix4d ICP(vector<int> associations, PointCloudT::Ptr target, PointClou
   	// P = [ mean p1 x] Q = [ mean p2 x]
   	//	   [ mean p1 y]	    [ mean p2 y]
 
-	double total_px, total_py, total_qx, total_qy;
+	vector<Pair> pairs = PairPoints(associations, target, sourceTransformed, true, viewer);
+
+
+	//double total_px, total_py, total_qx, total_qy;
 	int totalPointNum = (*source).points.size();
 
-	for(int i=0; i<totalPointNum;i++){
-
-		total_px += (*source).points[i].x;
-		total_py += (*source).points[i].y;
-		total_qx += (*target).points[i].x;
-		total_qy += (*target).points[i].y;
-
-	}
-
+	
 
 	Eigen::MatrixXd P(2,1);
-	P(0,0) = total_px/totalPointNum;
-	P(1,0) = total_py/totalPointNum;
-
 	Eigen::MatrixXd Q(2,1);
-	Q(0,0) = total_qx/totalPointNum;
-	Q(1,0) = total_qy/totalPointNum;
+
+	for(Pair pair : pairs){
+		P(0,0) += pair.p1.x;
+		P(1,0) += pair.p1.y;
+		Q(0,0) += pair.p2.x;
+		Q(1,0) += pair.p2.y;
+	}
+
+	P(0,0) = P(0,0)/pairs.size();
+	P(1,0) = P(1,0)/pairs.size();
+	Q(0,0) = Q(0,0)/pairs.size();
+	Q(1,0) = Q(1,0)/pairs.size();
 
 	cout <<"check3" <<endl;
 
@@ -203,15 +201,17 @@ Eigen::Matrix4d ICP(vector<int> associations, PointCloudT::Ptr target, PointClou
   	// X = [p1 x0 , p1 x1 , p1 x2 , .... , p1 xn ] - [Px]   Y = [p2 x0 , p2 x1 , p2 x2 , .... , p2 xn ] - [Qx]
   	//     [p1 y0 , p1 y1 , p1 y2 , .... , p1 yn ]   [Py]       [p2 y0 , p2 y1 , p2 y2 , .... , p2 yn ]   [Qy]
 
-	Eigen::MatrixXd X(2,totalPointNum);
-	Eigen::MatrixXd Y(2,totalPointNum);
+	Eigen::MatrixXd X(2,pairs.size());
+	Eigen::MatrixXd Y(2,pairs.size());
 
-	for(int i=0; i<totalPointNum; i++){
-		X(0,i) = (*source).points[i].x - P(0,0);
-		X(1,i) = (*source).points[i].y - P(1,0);
-		Y(0,i) = (*target).points[i].x - Q(0,0);
-		Y(1,i) = (*target).points[i].y - Q(1,0);
+	int i=0;
 
+	for(Pair pair : pairs){
+		X(0,i) = pair.p1.x - P(0,0);
+		X(1,i) = pair.p1.y - P(1,0);
+		Y(0,i) = pair.p2.x - Q(0,0);
+		Y(1,i) = pair.p2.y - Q(1,0);
+		i++
 	}
 
   	// TODO: create matrix S using equation 3 from the svd_rot.pdf. Note W is simply the identity matrix because weights are all 1
@@ -259,6 +259,10 @@ Eigen::Matrix4d ICP(vector<int> associations, PointCloudT::Ptr target, PointClou
 	cout <<"check6" <<endl;
 	cout <<transformation_matrix(0,0)<<transformation_matrix(0,1)<<transformation_matrix(1,0)<<transformation_matrix(1,1)<<transformation_matrix(0,3)<<transformation_matrix(1,3) <<endl;
 	
+	///this may be very important!!!!
+	transformation_matrix = transformation_matrix * startingPoseMat;
+
+
   	return transformation_matrix;
 }
 
@@ -295,10 +299,15 @@ int main(){
 			viewer->removePointCloud("source");
   			renderPointCloud(viewer, transformed_scan, "source", Color(1,0,0));
 
-			if(!update)
+			if(!update){
 				associations = NN(target, source, transformInit, 5);
-			else
+				cout << "association updated!" <<endl;
+			}
+			else{
 				associations = bestAssociations;
+				cout << "keep best association" <<endl;
+			}
+		
 
 			Eigen::Matrix4d transform = ICP(associations, target, source, pose, 1, viewer);
 
