@@ -211,7 +211,7 @@ Eigen::Matrix4d ICP(vector<int> associations, PointCloudT::Ptr target, PointClou
 		X(1,i) = pair.p1.y - P(1,0);
 		Y(0,i) = pair.p2.x - Q(0,0);
 		Y(1,i) = pair.p2.y - Q(1,0);
-		i++
+		i++;
 	}
 
   	// TODO: create matrix S using equation 3 from the svd_rot.pdf. Note W is simply the identity matrix because weights are all 1
