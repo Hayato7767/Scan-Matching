@@ -61,7 +61,14 @@ void keyboardEventOccurred(const pcl::visualization::KeyboardEvent &event, void*
 
 double Probability(Eigen::MatrixXd X, Eigen::MatrixXd Q, Eigen::MatrixXd S){
 	// TODO: calculate the probibility of the point given mean and standard deviation
-	return 0;
+	// S: sigma: covariance matrix, Q: mean matrix, X: All point matrix
+
+	cout << X.size() <<' '<< Q.size() <<' '<< S.size()<<endl;
+
+	Eigen::MatrixXd tempMat = (X-Q).transpose()*S.inverse()*(X-Q); // will be 1*1 matrix
+	double temp = tempMat(0,0);
+
+	return exp(-0.5*temp);
 }
 
 struct Cell{
@@ -189,13 +196,45 @@ Cell PDF(PointCloudT::Ptr input, int res, pcl::visualization::PCLVisualizer::Ptr
 	// TODO: Calculate the 2 x 1 matrix Q, which is the mean of the input points
 	Eigen::MatrixXd Q(2,1);
 	Q << Eigen::MatrixXd::Zero(2,1);
+
+	//cout << "check1" <<endl;
+
+	double X_ttl =0;
+	double Y_ttl =0;
+	for(PointT point: input->points){
+		X_ttl += point.x;
+		Y_ttl += point.y;
+	}
+
+	//cout << "check2" <<endl;
 	
+	Q(0,0) = X_ttl/(input->size());
+	Q(1,0) = Y_ttl/(input->size());
+
+	//cout << "check3" <<endl;
 
 	// TODO: Calculate the 2 x 2 matrix S, which is standard deviation of the input points
 	Eigen::MatrixXd S(2,2);
 	S << Eigen::MatrixXd::Zero(2,2);
-	
 
+	//cout << "check4" <<endl;
+
+	for(PointT point: input->points){
+
+		Eigen::MatrixXd temp(2,1);
+		temp(0,0) = point.x;
+		temp(1,0) = point.y;
+
+		S += ((temp - Q)*(temp - Q).transpose());
+	}
+
+	//cout << "check5"<<endl;
+
+	S /= input -> size();
+
+	//cout << "check6" <<endl;
+
+	
 	PointCloudTI::Ptr pdf(new PointCloudTI);
 	for(double i = 0.0; i <= 10.0; i += 10.0/double(res)){
 		for(double j = 0.0; j <= 10.0; j += 10.0/double(res)){
@@ -225,20 +264,52 @@ void NewtonsMethod(PointT point, double theta, Cell cell, Eigen::MatrixBase<Deri
 
 	// TODO: Get the Q and S matrices from cell, invert S matrix
 
+	Eigen::MatrixXd Q = cell.Q;
+	Eigen::MatrixXd S = cell.S;
+
 	// TODO: make a 2 x 1 matrix from input point
+	Eigen::MatrixXd inputMat(2,1);
+	inputMat(0,0) = point.x;
+	inputMat(1,0) = point.y;
 	
 	// TODO: calculate matrix q from X and Q
+	Eingen::MatrixXd q(2,1);
+	q = inputMat - Q;
 	
 	// TODO: calculate the 3 2 x 1 partial derivative matrices
 	// each with respect to x, y, and theta
+	Eigen::MatrixXd PartialDevMat =(2,3);
+	PartialDevMat(0,0) = 1;
+	PartialDevMat(0,1) = 0;
+	PartialDevMat(0,0) = -point.x*sin(theta) - point.y *cos(theta);
+
+	PartialDevMat(1,0) = 0;
+	PartialDevMat(1,1) = 1;
+	PartialDevMat(1,2) = point.x*cos(theta) - point.y*sin(theta);
+
 
 	// TODO: calcualte the 1 x 1 exponential matrix which uses q, and S inverse
+	Eigen::MatrixXd covariance(1,1);
+	covariance(0,0) = Probability(inputMat, Q, S);
+
 
 	// TODO: calculate the matrix g which uses q, exponential, S inverse, and partial derivatives
 	Eigen::MatrixXd g(3,1);
 	g << Eigen::MatrixXd::Zero(3,1);
+	g = exp(0.5*q.transpose()*covariance.inverse()*q)*(q.transpose()*covariance.inverse())*PartialDevMat;
+
+
     
     // TODO: calculate the 2 x 1 second order partial derivative matrix
+	Eigen::MatrixXd SecondPartialDevMat =(2,3);
+	SecondPartialDevMat(0,0) = 0;
+	SecondPartialDevMat(0,1) = 0;
+	SecondPartialDevMat(0,0) = -point.x*cos(theta) + point.y *sin(theta);
+
+	SecondPartialDevMat(1,0) = 0;
+	SecondPartialDevMat(1,1) = 0;
+	SecondPartialDevMat(1,2) = -point.x*sin(theta) - point.y*cos(theta);
+
 
 	// TODO: calculate the matrix H which uses q, exponential, S inverse, partial derivatives, and second order partial derivative
 	Eigen::MatrixXd H(3,3);
