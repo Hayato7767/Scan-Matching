@@ -70,7 +70,33 @@ Eigen::Matrix4d ICP(PointCloudT::Ptr target, PointCloudT::Ptr source, Pose start
 
   	// TODO: Implement the PCL ICP function and return the correct transformation matrix
   	// .....
-  	
+
+	Eigen::Matrix4d initMatrix = transform3D(startingPose.rotation.yaw, startingPose.rotation.pitch, startingPose.rotation.roll, startingPose.position.x, startingPose.position.y, startingPose.position.z);
+	PointCloudT::Ptr sourceTransformed (new PointCloudT);
+	pcl::transformPointCloud(*source, *sourceTransformed, initMatrix);
+
+
+	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;//create object of icp
+	icp.setInputSource(sourceTransformed);
+	icp.setInputTarget(target);
+
+
+	icp.setMaximumIterations(iterations);
+	icp.setMaxCorrespondenceDistance(2.0);
+	
+	pcl::PointCloud<pcl::PointXYZ> Final;
+	icp.align(Final);
+
+	if(icp.hasConverged()){
+		transformation_matrix = icp.getFinalTransformation().cast<double>();//original return value is float type;
+		
+		transformation_matrix = transformation_matrix * initMatrix;
+	}
+
+	else{
+		printf("icp did not converge: return original Identity matrix");
+	}
+
   	return transformation_matrix;
 
 }
@@ -164,8 +190,11 @@ int main(){
 
 	typename pcl::PointCloud<PointT>::Ptr cloudFiltered (new pcl::PointCloud<PointT>);
 
-	cloudFiltered = scanCloud; // TODO: remove this line
 	//TODO: Create voxel filter for input scan and save to cloudFiltered
+	pcl::VoxelGrid<PointT> vg;
+	vg.setInputCloud(scanCloud);
+	vg.setLeafSize(0.5, 0.5, 0.5);
+	vg.filter(*cloudFiltered);
 	// ......
 
 	PointCloudT::Ptr transformed_scan (new PointCloudT);
@@ -177,7 +206,7 @@ int main(){
 
 		if( matching != Off){
 			if( matching == Icp)
-				transform = ICP(mapCloud, cloudFiltered, pose, 0); //TODO: change the number of iterations to positive number
+				transform = ICP(mapCloud, cloudFiltered, pose, 3); //TODO: change the number of iterations to positive number
   			pose = getPose(transform);
 			if( !tester.Displacement(pose) ){
 				if(matching == Icp)
