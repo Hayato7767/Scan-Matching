@@ -69,6 +69,21 @@ Eigen::Matrix4d NDT(pcl::NormalDistributionsTransform<pcl::PointXYZ, pcl::PointX
   	Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity ();
 
   	// TODO: Implement the PCL NDT function and return the correct transformation matrix
+	ndt.setMaximumIterations(iterations);
+	Eigen::Matrix4d initTransform = transform3D(startingPose.rotation.yaw, startingPose.rotation.pitch, startingPose.rotation.roll, startingPose.position.x, startingPose.position.y, startingPose.position.z);
+
+	//PointCloudT::Ptr sourceTransformed(new PointCloudT);
+	//pcl::transformPointCloud(*source, *sourceTransformed, initTransform);
+
+	ndt.setInputSource(source);
+
+
+	PointCloudT::Ptr alignedData(new PointCloudT);
+
+	ndt.align(*alignedData, initTransform);
+
+	transformation_matrix = ndt.getFinalTransformation().cast<double>();
+
   	// .....
   	
   	return transformation_matrix;
@@ -170,7 +185,14 @@ int main(){
 
 	pcl::NormalDistributionsTransform<pcl::PointXYZ, pcl::PointXYZ> ndt;
 	//TODO: Set resolution and point cloud target (map) for ndt
+
+	ndt.setInputTarget(scanCloud);
+	ndt.setResolution(1.0);
+	ndt.setStepSize(.5);
+
 	// ......
+
+
 
 	PointCloudT::Ptr transformed_scan (new PointCloudT);
 	Tester tester;
@@ -181,7 +203,7 @@ int main(){
 
 		if( matching != Off){
 			if( matching == Ndt)
-				transform = NDT(ndt, cloudFiltered, pose, 0); //TODO: change the number of iterations to positive number
+				transform = NDT(ndt, cloudFiltered, pose, 10); //TODO: change the number of iterations to positive number
   			pose = getPose(transform);
 			if( !tester.Displacement(pose) ){
 				if(matching == Ndt)
